@@ -43,7 +43,7 @@ When this is triggered, the API will be called using the authentication of the u
 
 Not every user should be able to change the state of a subscription. To select which users can change the state of the subscription that uses this workflow for approval, follow the below steps:
 
-1. A Http Service Task that changes the state of a subscription, must be preceded by a user task.
+1. An Http Service Task that changes the state of a subscription, must be preceded by a user task.
 2. The ID of a user task that can trigger a subscription state must have the prefix `state-change-`.
 3. A user task with the ID prefix `state-change-` must have no assignments. That means the `Assignee`, `Candidate users`, and `Cadidate groups` fields must all be empty.
 4. When creating a workflow configuration with this template, for the user tasks with the `state-change-` prefix, be sure to set a list of users or user groups as the assignees.
@@ -78,7 +78,7 @@ There may be use cases where approval to certain data needs to be done through a
 
 Once review of the request is complete in the external system, there are two options to progress the request in Data Product Hub.
 
-1. Have the task assigned to a user who then manually opens the task inbox and approves or rejects the request.
+1. Have the user task assigned to a user who then manually opens the task inbox and approves or rejects the request.
 2. Have the external system make an API call to the task inbox to act on the request.
 
 To accomplish the second option, the below must be followed:
@@ -87,7 +87,7 @@ To accomplish the second option, the below must be followed:
 2. Assign that user to the user task when creating a workflow configuration with this workflow template.
 3. When the review is complete in the external system, use the authentication of this user to make the following API call.
 
-Call `POST /v3/workflow_user_tasks/{task_id}/actions`, using the task ID mentioned above and the body:
+Call `POST /v3/workflow_user_tasks/{task_id}/actions`, using the task ID mentioned above. Provide the action the user is taking. Use `approve` or `-reject` as required. These values are defined in the template and can therefore differ from template to template. Provide an explanation for the action being taken, this can be an arbitrary string. Use the following body:
 
 ```json
 {
@@ -104,7 +104,6 @@ Call `POST /v3/workflow_user_tasks/{task_id}/actions`, using the task ID mention
   ]
 }
 ```
-For the action, use `approve` or `-reject` as required. These values are defined in the template and can therefore differ from template to template. The explanation can be an arbitrary string to provide more context to the decision being made.
 
 ### Retrieving the task ID
 
@@ -113,11 +112,11 @@ To retrieve the ID of a task once it has been created, follow the below steps. R
 1. In the user task, create a new task listener.
 2. Select `create` as the event.
 3. ${task.setVariable("createdTaskId", task.getId())};
-3. For the expression, set `${task.setVariable("createdTaskId", task.getId())};` as the value.
+4. For the expression, set `${task.setVariable("createdTaskId", task.getId())};` as the value.
 
 Once the task is created, this will save the value of the ID to the `createdTaskId` variable.
 
-To use this ID in an HTTP call that needs to happen in parrallel, use a parallel gateway as seen in the sample.
+To use this ID in an HTTP call that needs to happen in parallel, use a parallel gateway as seen in the sample.
 
 1. Ensure that the checkbox next to Asynchronous is disabled.
 2. Set the flow order so that the user task comes before the activity that requires the task ID.
