@@ -83,7 +83,7 @@ Once review of the request is complete in the external system, there are two opt
 
 To accomplish the second option, the below must be followed:
 
-1. Have a user in Data Product Hub that represents actions of the external system.
+1. Have a user in Data Product Hub with the `Viewer` community role that represents actions of the external system.
 2. Assign that user to the user task when creating a workflow configuration with this workflow template.
 3. When the review is complete in the external system, use the authentication of this user to make the following API call.
 
