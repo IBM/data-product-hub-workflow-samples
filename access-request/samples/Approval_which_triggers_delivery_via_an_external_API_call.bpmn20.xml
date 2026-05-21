@@ -1,0 +1,307 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:flowable="http://flowable.org/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" typeLanguage="http://www.w3.org/2001/XMLSchema" expressionLanguage="http://www.w3.org/1999/XPath" targetNamespace="https://dataplatform.cloud.ibm.com/workflows/application/data_product_hub_access_request_v3" exporter="Flowable Open Source Modeler" exporterVersion="6.7.0">
+  <process id="approval_with_delivery_via_external_api_call" name="Approval which triggers delivery via an external API call" isExecutable="true">
+    <documentation>Data product hub access request process model sample for a one step approval process followed by an internal API call to the connections service and then an external API call to trigger delivery</documentation>
+    <startEvent id="start" name="Start" flowable:formFieldValidation="true">
+      <extensionElements>
+        <flowable:formProperty id="business_justification" name="Business justification" type="string" required="true"></flowable:formProperty>
+        <flowable:formProperty id="order_id" name="Subscription ID" type="string" required="true"></flowable:formProperty>
+        <flowable:formProperty id="order_requester" name="Subscription requester" type="string" expression="${cpd:conf('{&quot;cpd_type&quot;:&quot;cpd_user&quot;}')}" required="true"></flowable:formProperty>
+        <flowable:formProperty id="dp_owner" name="Product owner" type="string" expression="${cpd:conf('{&quot;cpd_type&quot;:&quot;cpd_user&quot;}')}" required="true"></flowable:formProperty>
+        <flowable:formProperty id="dp_name_with_version" name="Data Product Name with Version ID" type="string" required="true"></flowable:formProperty>
+        <flowable:formProperty id="dp_assignees" name="Data Product Assignee" type="string" expression="${cpd:conf('{&quot;cpd_type&quot;:&quot;cpd_user&quot;}')}" required="true"></flowable:formProperty>
+        <flowable:formProperty id="group_assignees" name="Group Assignees" type="string"></flowable:formProperty>
+        <flowable:formProperty id="dp_id" name="Product ID" type="string" required="true"></flowable:formProperty>
+        <flowable:formProperty id="description" name="Description" type="string" required="true"></flowable:formProperty>
+        <flowable:formProperty id="order_details" name="Subscription details" type="string" expression="${cpd:conf('{&quot;cpd_type&quot;:&quot;url&quot;}')}" required="true"></flowable:formProperty>
+        <flowable:formProperty id="product_details" name="Product details" type="string" expression="${cpd:conf('{&quot;cpd_type&quot;:&quot;url&quot;}')}" required="true"></flowable:formProperty>
+      </extensionElements>
+    </startEvent>
+    <userTask id="state-change-0" name="Approval task" flowable:category="approval" flowable:formFieldValidation="true">
+      <documentation>Review data product access request for ${dp_name_with_version} $$$ ${description}</documentation>
+      <extensionElements>
+        <flowable:formProperty id="business_justification" name="Business justification" type="string" writable="false" required="true"></flowable:formProperty>
+        <flowable:formProperty id="order_details" name="Subscription details" type="string" expression="${cpd:conf('{&quot;cpd_type&quot;:&quot;url&quot;}')}" writable="false" required="true"></flowable:formProperty>
+        <flowable:formProperty id="order_requester" name="Subscription requester" type="string" expression="${cpd:conf('{&quot;cpd_type&quot;:&quot;cpd_user&quot;}')}" writable="false" required="true"></flowable:formProperty>
+        <flowable:formProperty id="order_id" name="Subscription ID" type="string" writable="false" required="true"></flowable:formProperty>
+        <flowable:formProperty id="product_details" name="Product details" type="string" expression="${cpd:conf('{&quot;cpd_type&quot;:&quot;url&quot;}')}" writable="false" required="true"></flowable:formProperty>
+        <flowable:formProperty id="dp_owner" name="Product owner" type="string" expression="${cpd:conf('{&quot;cpd_type&quot;:&quot;cpd_user&quot;}')}" writable="false" required="true"></flowable:formProperty>
+        <flowable:formProperty id="dp_id" name="Product ID" type="string" writable="false" required="true"></flowable:formProperty>
+        <flowable:formProperty id="due_date_period" type="string" expression="${cpd:conf('{&quot;cpd_type&quot;:&quot;period&quot;,&quot;kind&quot;:&quot;config&quot;}')}" readable="false"></flowable:formProperty>
+        <flowable:formProperty id="comment" name="Comment" type="string"></flowable:formProperty>
+        <flowable:formProperty id="action" name="Approval Action" type="enum" required="true">
+          <flowable:value id="-reject" name="Reject"></flowable:value>
+          <flowable:value id="approve" name="Approve"></flowable:value>
+        </flowable:formProperty>
+      </extensionElements>
+    </userTask>
+    <endEvent id="sid-7E5EDBCE-E588-47AD-8176-C785467A966B" name="End"></endEvent>
+    <exclusiveGateway id="sid-0A9B2F28-3E20-456B-A798-3EE6D4690F5F" default="rejection_flow"></exclusiveGateway>
+    <scriptTask id="ScriptTask_1" name="Setup script" scriptFormat="javascript" flowable:autoStoreVariables="false">
+      <script><![CDATA[scriptLogger.info(execution, 'Processing update asset_list response');
+        scriptLogger.info(execution, 'Setting the workflow request title');
+        execution.setVariable('workflow_name', 'Data product access request for '+ dp_name_with_version);]]></script>
+    </scriptTask>
+    <scriptTask id="custom_approve_script" name="Approve" scriptFormat="javascript" flowable:autoStoreVariables="false">
+      <script><![CDATA[scriptLogger.info(execution, 'Launched Approve request for dpx subscription - ' + order_id);
+      scriptLogger.info(execution, 'DPX subscribed by  - '+ order_requester );
+      scriptLogger.info(execution, 'DPX Owned by  - '+ dp_owner );
+      execution.setVariable('base_url', 'https://cpd-internal');
+      execution.setVariable('order_id', order_id);
+      var post_body = JSON.stringify([{"op": "replace", "path": "/state", "value": "ready_to_deliver"},{"op": "add", "path": "/message", "value": comment}]);
+      execution.setTransientVariableLocal('create_artifact_body', post_body);
+      execution.setTransientVariableLocal('create_artifact_headers', "accept: application/json\ncache-control: no-cache\nContent-Type: application/json-patch+json\nCpd-Use-Current-User: true\nX-HTTP-Method-Override: PATCH");
+      scriptLogger.info(execution, 'Approved comment  - '+ comment );
+
+workflowStateAndActionLogger.updateInternalWorkflowStateAndLog(execution, 'Request Approved', 'approve', comment, null);]]></script>
+    </scriptTask>
+    <scriptTask id="Activity_0u54wz5" name="Reject" scriptFormat="javascript" flowable:autoStoreVariables="false">
+      <script><![CDATA[scriptLogger.info(execution, 'Launched Reject request for dpx subscription - ' + order_id);
+        execution.setVariable('base_url', 'https://cpd-internal');
+        execution.setVariable('order_id', order_id);
+        var post_body = JSON.stringify([{"op": "replace", "path": "/state", "value": "rejected"},{"op": "add", "path": "/message", "value": comment}]);
+        execution.setTransientVariableLocal('create_artifact_body', post_body);
+        execution.setTransientVariableLocal('create_artifact_headers', "accept: application/json\ncache-control: no-cache\nContent-Type: application/json-patch+json\nCpd-Use-Current-User: true\nX-HTTP-Method-Override: PATCH");
+        scriptLogger.info(execution, 'reject comment - '+ comment );
+workflowStateAndActionLogger.updateInternalWorkflowStateAndLog(execution, 'Request Rejected', '-reject', comment, null);]]></script>
+    </scriptTask>
+    <serviceTask id="sid-3D35DC40-2482-4D00-A4EE-B0E4C52722F3" name="Update subscription" flowable:parallelInSameTransaction="false" flowable:type="http">
+      <extensionElements>
+        <flowable:field name="requestMethod">
+          <flowable:string><![CDATA[POST]]></flowable:string>
+        </flowable:field>
+        <flowable:field name="requestUrl">
+          <flowable:expression><![CDATA[${base_url}/v2/asset_lists/${order_id}]]></flowable:expression>
+        </flowable:field>
+        <flowable:field name="requestHeaders">
+          <flowable:expression><![CDATA[${create_artifact_headers}]]></flowable:expression>
+        </flowable:field>
+        <flowable:field name="requestBody">
+          <flowable:expression><![CDATA[${create_artifact_body}]]></flowable:expression>
+        </flowable:field>
+        <flowable:field name="requestTimeout">
+          <flowable:string><![CDATA[30000]]></flowable:string>
+        </flowable:field>
+        <flowable:field name="failStatusCodes">
+          <flowable:string><![CDATA[4XX,5XX]]></flowable:string>
+        </flowable:field>
+        <flowable:field name="responseVariableName">
+          <flowable:string><![CDATA[update_order_response]]></flowable:string>
+        </flowable:field>
+        <flowable:field name="saveResponseParametersTransient">
+          <flowable:expression><![CDATA[${true}]]></flowable:expression>
+        </flowable:field>
+        <flowable:executionListener event="start" delegateExpression="${cpdInternalHttpExecutionListener}"></flowable:executionListener>
+      </extensionElements>
+    </serviceTask>
+    <sequenceFlow id="Flow_0o75z29" sourceRef="Activity_0u54wz5" targetRef="sid-3D35DC40-2482-4D00-A4EE-B0E4C52722F3"></sequenceFlow>
+    <sequenceFlow id="sid-5EC3A414-3AD8-4577-89C5-6A86E1A32AB5" sourceRef="custom_approve_script" targetRef="sid-3D35DC40-2482-4D00-A4EE-B0E4C52722F3"></sequenceFlow>
+    <sequenceFlow id="sid-73BB93E0-80F7-432A-A7BB-A8192FE2A1B8" sourceRef="state-change-0" targetRef="sid-0A9B2F28-3E20-456B-A798-3EE6D4690F5F"></sequenceFlow>
+    <sequenceFlow id="SequenceFlow_1" sourceRef="start" targetRef="ScriptTask_1"></sequenceFlow>
+    <sequenceFlow id="sid-DC4C0D4C-A371-452C-A03A-8AE64C8A942D" sourceRef="ScriptTask_1" targetRef="state-change-0"></sequenceFlow>
+    <serviceTask id="sid-D045521B-4B3E-4B1D-9114-76A737B24F08" name="Get Platform Connection" flowable:parallelInSameTransaction="false" flowable:type="http">
+      <extensionElements>
+        <flowable:field name="requestMethod">
+          <flowable:string><![CDATA[GET]]></flowable:string>
+        </flowable:field>
+        <flowable:field name="requestUrl">
+          <flowable:expression><![CDATA[${connection_url}]]></flowable:expression>
+        </flowable:field>
+        <flowable:field name="requestHeaders">
+          <flowable:expression><![CDATA[${connection_headers}]]></flowable:expression>
+        </flowable:field>
+        <flowable:field name="requestTimeout">
+          <flowable:string><![CDATA[30000]]></flowable:string>
+        </flowable:field>
+        <flowable:field name="responseVariableName">
+          <flowable:string><![CDATA[connection_response]]></flowable:string>
+        </flowable:field>
+        <flowable:field name="saveResponseParametersTransient">
+          <flowable:expression><![CDATA[${true}]]></flowable:expression>
+        </flowable:field>
+        <flowable:executionListener event="start" delegateExpression="${cpdInternalHttpExecutionListener}"></flowable:executionListener>
+      </extensionElements>
+    </serviceTask>
+    <scriptTask id="sid-08CEA613-917D-4BBB-A9D0-EFDAEAB654F4" name="Retrieve credentials" scriptFormat="javascript" flowable:autoStoreVariables="false">
+      <script><![CDATA[var resp_obj = JSON.parse(connection_response);
+var connection_properties = resp_obj.entity.properties;
+
+// retrieve the required credential from the above properties object and set the value in a transient execution variable
+var credential = "";
+
+execution.setTransientVariableLocal('credential', credential);]]></script>
+    </scriptTask>
+    <sequenceFlow id="sid-DEF08711-2A50-4CCB-A0F7-FE0AE0E06A7E" sourceRef="sid-D045521B-4B3E-4B1D-9114-76A737B24F08" targetRef="sid-08CEA613-917D-4BBB-A9D0-EFDAEAB654F4"></sequenceFlow>
+    <serviceTask id="sid-CF7E3BE6-0F6B-46D2-AC68-E5A17A90163B" name="External API call" flowable:parallelInSameTransaction="false" flowable:type="http">
+      <extensionElements>
+        <flowable:field name="requestMethod">
+          <flowable:string><![CDATA[GET]]></flowable:string>
+        </flowable:field>
+        <flowable:field name="requestTimeout">
+          <flowable:string><![CDATA[30000]]></flowable:string>
+        </flowable:field>
+        <flowable:field name="failStatusCodes">
+          <flowable:string><![CDATA[4XX,5XX]]></flowable:string>
+        </flowable:field>
+      </extensionElements>
+    </serviceTask>
+    <sequenceFlow id="sid-B00F4985-C093-4D21-B68C-21FF9841F2FD" sourceRef="sid-08CEA613-917D-4BBB-A9D0-EFDAEAB654F4" targetRef="sid-CF7E3BE6-0F6B-46D2-AC68-E5A17A90163B"></sequenceFlow>
+    <sequenceFlow id="sid-FD05BAAF-6F7F-4997-B940-A6C57B38F27B" sourceRef="sid-CF7E3BE6-0F6B-46D2-AC68-E5A17A90163B" targetRef="sid-7E5EDBCE-E588-47AD-8176-C785467A966B"></sequenceFlow>
+    <scriptTask id="sid-C13EDB44-CCF4-4935-B130-A3BA0AABED96" name="Setup to call connection API" scriptFormat="javascript" flowable:autoStoreVariables="false">
+      <script><![CDATA[execution.setVariable('connection_headers', "accept: application/json\ncache-control: no-cache\nContent-Type: application/json\nCpd-Use-Current-User: true");
+
+// set values to retrieve connection
+var connection_id = "";
+var connection_catalog_id = "";
+
+var url = "https://cpd-internal/v2/connections/" + connection_id + "?catalog_id=" + connection_catalog_id + "&test=false&decrypt_secrets=true"
+
+execution.setTransientVariableLocal('connection_url', url);]]></script>
+    </scriptTask>
+    <sequenceFlow id="sid-739750B6-6CDA-4B97-B4F9-CD523ACDF01F" sourceRef="sid-3D35DC40-2482-4D00-A4EE-B0E4C52722F3" targetRef="sid-B211738A-65DC-4389-B17A-4C48EFD3948D"></sequenceFlow>
+    <sequenceFlow id="sid-AB8774F8-E76B-4015-A952-B91B18C5584C" sourceRef="sid-C13EDB44-CCF4-4935-B130-A3BA0AABED96" targetRef="sid-D045521B-4B3E-4B1D-9114-76A737B24F08"></sequenceFlow>
+    <exclusiveGateway id="sid-B211738A-65DC-4389-B17A-4C48EFD3948D" default="sid-D22E3A82-DBA0-43EE-8F18-D2D5BBBC6EF3"></exclusiveGateway>
+    <sequenceFlow id="approval_flow" name="approve_request" sourceRef="sid-0A9B2F28-3E20-456B-A798-3EE6D4690F5F" targetRef="custom_approve_script">
+      <documentation>You approve access to this data product by the requestor.</documentation>
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${action == "approve"}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="sid-F86B9B48-0D85-4DDA-ABC8-75498B26D35E" name="approve_request" sourceRef="sid-B211738A-65DC-4389-B17A-4C48EFD3948D" targetRef="sid-C13EDB44-CCF4-4935-B130-A3BA0AABED96">
+      <documentation>You approve access to this data product by the requestor.</documentation>
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${action == "approve"}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="rejection_flow" name="reject_request" sourceRef="sid-0A9B2F28-3E20-456B-A798-3EE6D4690F5F" targetRef="Activity_0u54wz5">
+      <documentation>You deny access to this data product by the requestor. Provide a reason for the rejection in the comment box.</documentation>
+    </sequenceFlow>
+    <sequenceFlow id="sid-D22E3A82-DBA0-43EE-8F18-D2D5BBBC6EF3" name="reject_request" sourceRef="sid-B211738A-65DC-4389-B17A-4C48EFD3948D" targetRef="sid-7E5EDBCE-E588-47AD-8176-C785467A966B">
+      <documentation>You deny access to this data product by the requestor. Provide a reason for the rejection in the comment box.</documentation>
+    </sequenceFlow>
+    <textAnnotation id="sid-0B4EF7FE-1E94-4691-A19F-450A29CA229E">
+      <text>Update the connection ID and catalog ID in this script</text>
+    </textAnnotation>
+    <textAnnotation id="sid-3D98BB3D-83F4-4324-B5E9-B9A38346416A">
+      <text>Update the logic to retrieve the required credential</text>
+    </textAnnotation>
+    <textAnnotation id="sid-B1F56232-D151-4AC5-9D80-5147885565EB">
+      <text>Use the above credential here to make an external API call</text>
+    </textAnnotation>
+    <textAnnotation id="sid-EFEC53F1-DF8F-4F9D-A895-45095131F7D6">
+      <text>Add components here to process the response if required.</text>
+    </textAnnotation>
+  </process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_approval_with_delivery_via_external_api_call">
+    <bpmndi:BPMNPlane bpmnElement="approval_with_delivery_via_external_api_call" id="BPMNPlane_approval_with_delivery_via_external_api_call">
+      <bpmndi:BPMNShape bpmnElement="start" id="BPMNShape_start">
+        <omgdc:Bounds height="30.0" width="30.0" x="210.0" y="215.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="state-change-0" id="BPMNShape_state-change-0">
+        <omgdc:Bounds height="80.0" width="100.0" x="315.0" y="297.0557358040383"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-7E5EDBCE-E588-47AD-8176-C785467A966B" id="BPMNShape_sid-7E5EDBCE-E588-47AD-8176-C785467A966B">
+        <omgdc:Bounds height="28.0" width="28.0" x="1145.0000574014248" y="719.5829894940982"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-0A9B2F28-3E20-456B-A798-3EE6D4690F5F" id="BPMNShape_sid-0A9B2F28-3E20-456B-A798-3EE6D4690F5F">
+        <omgdc:Bounds height="40.0" width="40.00000000000006" x="487.29442641959616" y="317.0557358040383"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="ScriptTask_1" id="BPMNShape_ScriptTask_1">
+        <omgdc:Bounds height="40.0" width="127.0" x="301.5" y="210.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="custom_approve_script" id="BPMNShape_custom_approve_script">
+        <omgdc:Bounds height="80.0" width="100.0" x="596.2944264195962" y="187.0557358040383"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="Activity_0u54wz5" id="BPMNShape_Activity_0u54wz5">
+        <omgdc:Bounds height="80.0" width="100.0" x="596.2944264195962" y="397.0557358040383"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-3D35DC40-2482-4D00-A4EE-B0E4C52722F3" id="BPMNShape_sid-3D35DC40-2482-4D00-A4EE-B0E4C52722F3">
+        <omgdc:Bounds height="80.0" width="100.0" x="791.2944028371853" y="297.05572695108776"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-D045521B-4B3E-4B1D-9114-76A737B24F08" id="BPMNShape_sid-D045521B-4B3E-4B1D-9114-76A737B24F08">
+        <omgdc:Bounds height="80.0" width="100.0" x="1109.0000288718284" y="396.6387134649537"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-08CEA613-917D-4BBB-A9D0-EFDAEAB654F4" id="BPMNShape_sid-08CEA613-917D-4BBB-A9D0-EFDAEAB654F4">
+        <omgdc:Bounds height="80.00000000000017" width="100.0" x="1109.0000003422329" y="501.2495188849801"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-CF7E3BE6-0F6B-46D2-AC68-E5A17A90163B" id="BPMNShape_sid-CF7E3BE6-0F6B-46D2-AC68-E5A17A90163B">
+        <omgdc:Bounds height="80.0" width="100.0" x="1109.0000574014248" y="614.5829894940982"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-C13EDB44-CCF4-4935-B130-A3BA0AABED96" id="BPMNShape_sid-C13EDB44-CCF4-4935-B130-A3BA0AABED96">
+        <omgdc:Bounds height="65.0" width="118.0" x="1100.0000291400493" y="304.63869802402985"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-0B4EF7FE-1E94-4691-A19F-450A29CA229E" id="BPMNShape_sid-0B4EF7FE-1E94-4691-A19F-450A29CA229E">
+        <omgdc:Bounds height="64.0" width="105.0" x="1231.7056309818286" y="304.63872529813636"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-3D98BB3D-83F4-4324-B5E9-B9A38346416A" id="BPMNShape_sid-3D98BB3D-83F4-4324-B5E9-B9A38346416A">
+        <omgdc:Bounds height="64.00000000000011" width="105.0" x="1231.7056309818286" y="509.2495338358077"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-B1F56232-D151-4AC5-9D80-5147885565EB" id="BPMNShape_sid-B1F56232-D151-4AC5-9D80-5147885565EB">
+        <omgdc:Bounds height="64.0" width="105.0" x="1231.7056309818286" y="622.5829894940982"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-EFEC53F1-DF8F-4F9D-A895-45095131F7D6" id="BPMNShape_sid-EFEC53F1-DF8F-4F9D-A895-45095131F7D6">
+        <omgdc:Bounds height="70.0" width="108.0" x="1228.7056309818286" y="698.5829894940982"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-B211738A-65DC-4389-B17A-4C48EFD3948D" id="BPMNShape_sid-B211738A-65DC-4389-B17A-4C48EFD3948D">
+        <omgdc:Bounds height="40.0" width="40.0" x="933.3333580582237" y="317.1386980240299"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge bpmnElement="approval_flow" id="BPMNEdge_approval_flow" flowable:sourceDockerX="20.00000000000003" flowable:sourceDockerY="20.0" flowable:targetDockerX="50.0" flowable:targetDockerY="40.0">
+        <omgdi:waypoint x="507.2410642108485" y="317.10007613237275"></omgdi:waypoint>
+        <omgdi:waypoint x="507.0" y="227.0"></omgdi:waypoint>
+        <omgdi:waypoint x="596.2944264195311" y="227.03572933088967"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-5EC3A414-3AD8-4577-89C5-6A86E1A32AB5" id="BPMNEdge_sid-5EC3A414-3AD8-4577-89C5-6A86E1A32AB5" flowable:sourceDockerX="50.0" flowable:sourceDockerY="40.0" flowable:targetDockerX="50.0" flowable:targetDockerY="40.0">
+        <omgdi:waypoint x="646.1873079912727" y="267.0057358040383"></omgdi:waypoint>
+        <omgdi:waypoint x="646.0" y="337.0"></omgdi:waypoint>
+        <omgdi:waypoint x="791.2944028371853" y="337.0414595296261"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="Flow_0o75z29" id="BPMNEdge_Flow_0o75z29" flowable:sourceDockerX="50.0" flowable:sourceDockerY="40.0" flowable:targetDockerX="50.0" flowable:targetDockerY="40.0">
+        <omgdi:waypoint x="696.2444264193418" y="437.04142296157227"></omgdi:waypoint>
+        <omgdi:waypoint x="841.0" y="437.0"></omgdi:waypoint>
+        <omgdi:waypoint x="841.1765760410301" y="377.0057269510878"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-D22E3A82-DBA0-43EE-8F18-D2D5BBBC6EF3" id="BPMNEdge_sid-D22E3A82-DBA0-43EE-8F18-D2D5BBBC6EF3" flowable:sourceDockerX="20.5" flowable:sourceDockerY="20.500000000000057" flowable:targetDockerX="14.0" flowable:targetDockerY="14.0">
+        <omgdi:waypoint x="953.8333580582237" y="356.58630561484637"></omgdi:waypoint>
+        <omgdi:waypoint x="953.8333580582237" y="733.5829894940982"></omgdi:waypoint>
+        <omgdi:waypoint x="1145.0000574014248" y="733.5829894940982"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-FD05BAAF-6F7F-4997-B940-A6C57B38F27B" id="BPMNEdge_sid-FD05BAAF-6F7F-4997-B940-A6C57B38F27B" flowable:sourceDockerX="50.0" flowable:sourceDockerY="40.0" flowable:targetDockerX="14.0" flowable:targetDockerY="14.0">
+        <omgdi:waypoint x="1159.0000574014248" y="694.5329894940982"></omgdi:waypoint>
+        <omgdi:waypoint x="1159.0000574014248" y="719.5829894940982"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-AB8774F8-E76B-4015-A952-B91B18C5584C" id="BPMNEdge_sid-AB8774F8-E76B-4015-A952-B91B18C5584C" flowable:sourceDockerX="58.99999999999998" flowable:sourceDockerY="32.5" flowable:targetDockerX="50.0" flowable:targetDockerY="40.0">
+        <omgdi:waypoint x="1159.0000290524395" y="369.5886980240299"></omgdi:waypoint>
+        <omgdi:waypoint x="1159.000028979521" y="396.6387134649537"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-DEF08711-2A50-4CCB-A0F7-FE0AE0E06A7E" id="BPMNEdge_sid-DEF08711-2A50-4CCB-A0F7-FE0AE0E06A7E" flowable:sourceDockerX="50.0" flowable:sourceDockerY="40.0" flowable:targetDockerX="50.0" flowable:targetDockerY="40.000000000000085">
+        <omgdi:waypoint x="1159.000017962976" y="476.5887134649537"></omgdi:waypoint>
+        <omgdi:waypoint x="1159.0000112374491" y="501.2495188849801"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="SequenceFlow_1" id="BPMNEdge_SequenceFlow_1" flowable:sourceDockerX="15.0" flowable:sourceDockerY="15.0" flowable:targetDockerX="63.5" flowable:targetDockerY="20.0">
+        <omgdi:waypoint x="239.94999906759472" y="230.0"></omgdi:waypoint>
+        <omgdi:waypoint x="301.5" y="230.0"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-DC4C0D4C-A371-452C-A03A-8AE64C8A942D" id="BPMNEdge_sid-DC4C0D4C-A371-452C-A03A-8AE64C8A942D" flowable:sourceDockerX="63.5" flowable:sourceDockerY="20.0" flowable:targetDockerX="50.0" flowable:targetDockerY="40.0">
+        <omgdi:waypoint x="365.0" y="249.95000000000002"></omgdi:waypoint>
+        <omgdi:waypoint x="365.0" y="297.0557358040383"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-F86B9B48-0D85-4DDA-ABC8-75498B26D35E" id="BPMNEdge_sid-F86B9B48-0D85-4DDA-ABC8-75498B26D35E" flowable:sourceDockerX="20.5" flowable:sourceDockerY="20.5" flowable:targetDockerX="59.0" flowable:targetDockerY="32.5">
+        <omgdi:waypoint x="972.825003019065" y="337.5922810869204"></omgdi:waypoint>
+        <omgdi:waypoint x="1100.0000291400424" y="337.28236170899675"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="rejection_flow" id="BPMNEdge_rejection_flow" flowable:sourceDockerX="20.00000000000003" flowable:sourceDockerY="20.0" flowable:targetDockerX="50.0" flowable:targetDockerY="40.0">
+        <omgdi:waypoint x="507.23568135463415" y="356.9471376017386"></omgdi:waypoint>
+        <omgdi:waypoint x="507.0" y="437.0"></omgdi:waypoint>
+        <omgdi:waypoint x="596.2944264195531" y="437.03572933088975"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-739750B6-6CDA-4B97-B4F9-CD523ACDF01F" id="BPMNEdge_sid-739750B6-6CDA-4B97-B4F9-CD523ACDF01F" flowable:sourceDockerX="50.0" flowable:sourceDockerY="40.0" flowable:targetDockerX="14.718300271442786" flowable:targetDockerY="17.118912690977083">
+        <omgdi:waypoint x="891.2444028371852" y="335.74522293748566"></omgdi:waypoint>
+        <omgdi:waypoint x="935.8491933962013" y="334.5748699016856"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-73BB93E0-80F7-432A-A7BB-A8192FE2A1B8" id="BPMNEdge_sid-73BB93E0-80F7-432A-A7BB-A8192FE2A1B8" flowable:sourceDockerX="50.0" flowable:sourceDockerY="40.0" flowable:targetDockerX="20.00000000000003" flowable:targetDockerY="20.0">
+        <omgdi:waypoint x="414.9499999999164" y="337.0557358040383"></omgdi:waypoint>
+        <omgdi:waypoint x="487.29442641959616" y="337.0557358040383"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-B00F4985-C093-4D21-B68C-21FF9841F2FD" id="BPMNEdge_sid-B00F4985-C093-4D21-B68C-21FF9841F2FD" flowable:sourceDockerX="50.0" flowable:sourceDockerY="40.000000000000085" flowable:targetDockerX="50.0" flowable:targetDockerY="40.0">
+        <omgdi:waypoint x="1159.0000204555736" y="581.1995188849803"></omgdi:waypoint>
+        <omgdi:waypoint x="1159.0000372629108" y="614.5829894940982"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>
