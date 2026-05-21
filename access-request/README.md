@@ -1,5 +1,21 @@
 # Requirements for access request workflow templates
 
+## Table of Contents
+
+- [Required start variables](#required-start-variables)
+- [How to approve or reject a request](#how-to-approve-or-reject-a-request)
+  - [Making API calls to internal services](#making-api-calls-to-internal-services)
+  - [Authorizing users to change the state of a subscription](#authorizing-users-to-change-the-state-of-a-subscription)
+- [The provided samples](#the-provided-samples)
+  - [One step approval process](#one-step-approval-process)
+  - [Two step approval process](#two-step-approval-process)
+  - [Approving from an external system](#approving-from-an-external-system)
+    - [Retrieving the task ID](#retrieving-the-task-id)
+  - [Approval process that triggers data delivery in an external system](#approval-process-that-triggers-data-delivery-in-an-external-system)
+    - [Review and approve subscription](#review-and-approve-subscription)
+    - [Deliver data assets to consumer](#deliver-data-assets-to-consumer)
+    - [Complete subscription in Data Product Hub](#complete-subscription-in-data-product-hub)
+
 ## Required start variables
 
 Below are the start form properties that are required for a workflow template to be compatable with the workflow type `Access request for data product`.
@@ -45,7 +61,7 @@ Not every user should be able to change the state of a subscription. To select w
 
 1. An Http Service Task that changes the state of a subscription, must be preceded by a user task.
 2. The ID of a user task that can trigger a subscription state must have the prefix `state-change-`.
-3. A user task with the ID prefix `state-change-` must have no assignments. That means the `Assignee`, `Candidate users`, and `Cadidate groups` fields must all be empty.
+3. A user task with the ID prefix `state-change-` must have no assignments. That means the `Assignee`, `Candidate users`, and `Candidate groups` fields must all be empty.
 4. When creating a workflow configuration with this template, for the user tasks with the `state-change-` prefix, be sure to set a list of users or user groups as the assignees.
 
 This selected list of users and user groups will be authorized to change the state of a subscription that uses this workflow.
@@ -123,3 +139,91 @@ To use this ID in an HTTP call that needs to happen in parallel, use a parallel 
 3. Set a 5 second timer before the other activity to ensure the task has been created before trying to use the ID.
 
 Now the ID is available in a variable that can be used by other activities in the workflow template.
+
+## Approval process that triggers data delivery through an external system
+
+
+![Approval process with delivery via an external call diagram](images/Approval_and_delivery_with_external_call_process_diagram.png)
+
+There may be use cases where the approval of a data product triggers the delivery of the data product through a system external to Data Product Hub. This template is an example of a workflow that will make a call to an external system to deliver the data product to the consumer after the data access request is approved. This method requires a user task to complete the approval.
+
+In this example, the workflow needs to use credentials to interact with the external system. It can retrieve credentials like an API key from a Platform Connection and authenticate API calls to the external system using that key. The Platform Connection is created by an Administrator shared with all users who are allowed to approve data access requests. 
+
+In the template, after the data access request is approved, a HTTP call will retrieve the credentials from the Platform Connection. The call to retrieve the credentials uses the authentication of the last acting user, which in this case is the user that clicked `Approve` in the task inbox on the data access request. The retrived credentials will be used to make another HTTP call to the external system to trigger the delivery of the data product. 
+
+The call to the external system includes the subscription ID (value of the variable `order_id`) to help inform the external system the subscription details such as information on the user who requested the data access (`order_requester`), the data assets and/or columns to be delivered, duration of the subscription etc.
+
+
+### Review and approve subscription
+An approver can review the details of the subscription in the Data Product Hub UI using the link provided in the data access request task or using the `GET /v2/asset_lists/{subscription_id}` API where the subscription ID is the value of the `order_id` property in the access request task. To make calls to DPH, use an authenticated token, see https://cloud.ibm.com/apidocs/dataproducts-cpd#authentication for more details.
+
+### Deliver data assets to consumer
+The external system can get the list of data assets to be delivered using `GET /v2/asset_lists/{subscription_id}/items` API. The `GET v2/asset_lists/{subscription_id}/items/{item_id}` API can be used to get the subscription details for each item. Each item in the list represents a data asset to be delivered. 
+
+For each item in the list, 
+* Use the API `GET /v2/assets/{asset_id}?catalog_id={catalog_id}` to get the details of the data asset. The asset ID is the value of the `asset_id` property in the item. The catalog ID is the value of the `asset.container.id`. 
+* Get the data source details for the data asset using the `GET /v2/data_sources/{datasource_id}?catalog_id={catalog_id}` API where data source ID is the value of the `attachments.[0].datasource_type` property in the asset. 
+* Get the path to the data asset in the data source from the `attachments.[0].connection_path` property.
+* Additional information required for the delivery of the data asset can be obtained from the `properties.input` property. `properties.input.columns_input` property contains a list of columns to be delivered. 
+* Custom properties can also be obtained. Example: `properties.input.subscriptionDuration` property contains the requested duration of the subscription.
+
+### Complete subscription in Data Product Hub 
+After the delivery of the data assets to a consumer is completed in the external system, the subscription must be completed in Data Product Hub. This can be accomplished using a few callback APIs that the external system must call.
+
+To complete the data product delivery, the below must be followed:
+
+1. Have one or more users in Data Product Hub with atleast `Viewer` community role who are authorized to take action on behalf of the external system.
+2. Assign the users to the user task when creating a workflow configuration with this workflow template.
+3. When the delivery is complete in the external system, use the authentication of one of the users to make the following API calls.
+
+For each asset, the following must be done:
+
+1. (Optional) Update output properties using the `PATCH /data_product_exchange/v1/subscriptions/{subscription_id}/items/{item_id}` API. The output properties contains information about the delivered asset that are visible to a consumer in the Data Product Hub Subscriptions UI 
+
+```
+PATCH /data_product_exchange/v1/subscriptions/{subscription_id}/items/
+
+[
+  {
+    "op": "replace",
+    "path": "/output",
+    "value": {        
+      "accessDuration": {
+        "name": "Access Duration",
+        "type": "string",
+        "value": "03/19/2026 - 03/26/2026"
+      },
+      "hostUrl": {
+        "name": "Host URL",
+        "type": "string",
+        "value": "https://dsta.cloud.unity.com"
+      },
+      "port": {
+        "name": "Port",
+        "type": "string",
+        "value": "443"
+      },
+      "credentialInfo": {
+        "name": "Credential Info",
+        "type": "string",
+        "value": "Will be emailed to you"
+      }               
+    }
+  }
+]
+```
+2. Update the delivery status using the `PATCH /data_product_exchange/v1/subscriptions/{subscription_id}/items/{item_id}` API. The delivery status can be one of the following: ``delivered`, `failed`. 
+
+```
+PATCH /data_product_exchange/v1/subscriptions/{order_id}/items/{item_id}
+
+[
+  {
+    "op": "replace",
+    "path": "/data_product_delivery_state",
+    "value": "delivered"
+  }
+]
+```
+
+Data Product Hub service will monitor the delivery state of all the data assets and update the final state of the subscription as `succeeded`, `failed` or `partially_delivered` to complete the subscription. 
