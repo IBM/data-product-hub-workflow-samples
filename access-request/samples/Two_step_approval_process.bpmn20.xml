@@ -53,7 +53,7 @@ SPDX-License-Identifier: Apache-2.0
       execution.setVariable('order_id', order_id);
       var post_body = JSON.stringify([{"op": "replace", "path": "/state", "value": "ready_to_deliver"},{"op": "add", "path": "/message", "value": comment}]);
       execution.setTransientVariableLocal('create_artifact_body', post_body);
-      execution.setTransientVariableLocal('create_artifact_headers', "accept: application/json\ncache-control: no-cache\nContent-Type: application/json-patch+json\nCpd-Use-Current-User: true\nX-HTTP-Method-Override: PATCH");
+      execution.setTransientVariableLocal('create_artifact_headers', "accept: application/json\ncache-control: no-cache\nContent-Type: application/json-patch+json; charset=UTF-8\nCpd-Use-Current-User: true\nX-HTTP-Method-Override: PATCH");
       scriptLogger.info(execution, 'Approved comment  - '+ comment );
 
 workflowStateAndActionLogger.updateInternalWorkflowStateAndLog(execution, 'Request Approved', 'approve', comment, null);]]></script>
@@ -64,7 +64,7 @@ workflowStateAndActionLogger.updateInternalWorkflowStateAndLog(execution, 'Reque
         execution.setVariable('order_id', order_id);
         var post_body = JSON.stringify([{"op": "replace", "path": "/state", "value": "rejected"},{"op": "add", "path": "/message", "value": comment}]);
         execution.setTransientVariableLocal('create_artifact_body', post_body);
-        execution.setTransientVariableLocal('create_artifact_headers', "accept: application/json\ncache-control: no-cache\nContent-Type: application/json-patch+json\nCpd-Use-Current-User: true\nX-HTTP-Method-Override: PATCH");
+        execution.setTransientVariableLocal('create_artifact_headers', "accept: application/json\ncache-control: no-cache\nContent-Type: application/json-patch+json; charset=UTF-8\nCpd-Use-Current-User: true\nX-HTTP-Method-Override: PATCH");
         scriptLogger.info(execution, 'reject comment - '+ comment );
 workflowStateAndActionLogger.updateInternalWorkflowStateAndLog(execution, 'Request Rejected', '-reject', comment, null);]]></script>
     </scriptTask>
@@ -85,6 +85,9 @@ workflowStateAndActionLogger.updateInternalWorkflowStateAndLog(execution, 'Reque
         </flowable:field>
         <flowable:field name="requestBody">
           <flowable:expression><![CDATA[${create_artifact_body}]]></flowable:expression>
+        </flowable:field>
+        <flowable:field name="requestBodyEncoding">
+          <flowable:string><![CDATA[UTF-8]]></flowable:string>
         </flowable:field>
         <flowable:field name="requestTimeout">
           <flowable:string><![CDATA[30000]]></flowable:string>
